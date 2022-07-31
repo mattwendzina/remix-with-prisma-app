@@ -76,7 +76,6 @@ export const requireUserId = async (
 ) => {
   const session = await getUserSession(request);
   const userId = session.get("userId");
-  console.log(">>>>USER ID? ", userId);
   if (!userId || typeof userId !== "string") {
     const searchParams = new URLSearchParams([["redirectTo", redirectTo]]);
     throw redirect(`/login?${searchParams}`);
