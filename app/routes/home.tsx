@@ -8,13 +8,57 @@ import { UserPanel } from "../components/user-panel";
 import { getOtherUsers } from "~/utils/users.server";
 import { getFilteredKudos, getRecentKudos } from "~/utils/kudo.server";
 import { Kudo } from "~/components/kudo";
-import type { Kudo as IKudo, Profile } from "@prisma/client";
+import type { Kudo as IKudo, Prisma, Profile } from "@prisma/client";
 import { RecentBar } from "~/components/recent-bar";
+import { SearchBar } from "~/components/search-bar";
 
 export const loader: LoaderFunction = async ({ request }) => {
   const userId = await requireUserId(request);
   const users = await getOtherUsers(userId);
-  const kudos = await getFilteredKudos(userId, {}, {});
+
+  const url = new URL(request.url);
+  const sort = url.searchParams.get("sort");
+  const filter = url.searchParams.get("filter");
+
+  let sortOptions: Prisma.KudoOrderByWithRelationInput = {};
+  if (sort) {
+    if (sort === "date") {
+      sortOptions = { createdAt: "desc" };
+    }
+    if (sort === "sender") {
+      sortOptions = { author: { profile: { firstName: "asc" } } };
+    }
+    if (sort === "emoji") {
+      sortOptions = { style: { emoji: "asc" } };
+    }
+  }
+
+  let textFilter: Prisma.KudoWhereInput = {};
+  if (filter) {
+    textFilter = {
+      OR: [
+        { message: { mode: "insensitive", contains: filter } },
+        {
+          author: {
+            OR: [
+              {
+                profile: {
+                  is: { firstName: { mode: "insensitive", contains: filter } },
+                },
+              },
+              {
+                profile: {
+                  is: { lastName: { mode: "insensitive", contains: filter } },
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+  }
+
+  const kudos = await getFilteredKudos(userId, sortOptions, textFilter);
   const recentKudos = await getRecentKudos();
   return json({ users, kudos, recentKudos });
 };
@@ -33,7 +77,7 @@ const Home = () => {
       <div className="h-full flex">
         <UserPanel users={users} />
         <div className="flex-1 flex flex-col">
-          {/* search bar */}
+          <SearchBar />
           <div className="flex-1 flex">
             <div className="w-full p-10 flex flex-col gap-y-4">
               {kudos.map((kudo: KudoWithAuthor) => (
